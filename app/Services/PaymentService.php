@@ -2,8 +2,8 @@
 
 namespace App\Services;
 
+use App\Enums\EntryType;
 use App\Models\CashEntry;
-use App\Models\EntryType;
 use App\Models\Order;
 use App\Models\Payment;
 use Illuminate\Support\Facades\DB;
@@ -36,14 +36,12 @@ class PaymentService
             throw new InvalidArgumentException('لا يمكن تحديد تاريخ مستقبلي.');
         }
 
-        $entryType = EntryType::where('code', 'client_payment')->firstOrFail();
-
-        return DB::transaction(function () use ($order, $amount, $date, $description, $isDeposit, $entryType) {
+        return DB::transaction(function () use ($order, $amount, $date, $description, $isDeposit) {
             $cashEntry = CashEntry::create([
-                'entry_type_id' => $entryType->id,
-                'amount'        => $amount,
-                'description'   => $description ?: "تحصيل من عميل: {$order->client->name}",
-                'entry_date'    => $date,
+                'entry_type'  => EntryType::ClientPayment->value,
+                'amount'      => $amount,
+                'description' => $description ?: "تحصيل من عميل: {$order->client->name}",
+                'notes'       => null,
             ]);
 
             return Payment::create([
@@ -72,7 +70,6 @@ class PaymentService
         $payment->load('order.payments.cashEntry');
         $order = $payment->order;
 
-        // Max allowed = remaining balance + what this payment currently holds
         $maxAllowed = $order->remaining + (float) $payment->cashEntry->amount;
 
         if ($amount > $maxAllowed) {
@@ -85,7 +82,6 @@ class PaymentService
             $payment->cashEntry->update([
                 'amount'      => $amount,
                 'description' => $description ?: $payment->cashEntry->description,
-                'entry_date'  => $date,
             ]);
 
             $payment->update(['payment_date' => $date]);
